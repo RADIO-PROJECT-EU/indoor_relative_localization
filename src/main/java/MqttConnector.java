@@ -50,7 +50,7 @@ public class MqttConnector implements MqttCallback{
         }
         try {
 //            this.mqclient = new MqttClient("tcp://172.21.13.170:1883", "relative-localization-agent-impl", new MemoryPersistence());
-            this.mqclient = new MqttClient("tcp://150.140.187.124:1883", "relativeLoc", new MemoryPersistence());
+            this.mqclient = new MqttClient("tcp://150.140.187.125:1883", "relativeLoc", new MemoryPersistence());
             this.mqclient.setCallback(this);
             this.mqclient.connect(this.getConnectioOptions());
             logger.info("Successfully Connected to main gateway");
@@ -81,7 +81,8 @@ public class MqttConnector implements MqttCallback{
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         WSNMessage.Advertisment advertisment = WSNMessage.Advertisment.parseFrom(message.getPayload());
 
-//        logger.info(advertisment.getAddress());
+        logger.info(advertisment.getAddress());
+        publishMsg();
 
         if( advertisment.getAddress().equals("00:02:5B:00:B9:10") || advertisment.getAddress().equals("00:02:5B:00:B9:12") ){
 
@@ -133,7 +134,7 @@ public class MqttConnector implements MqttCallback{
                 frm.setDate(new Date());
                 logger.debug(frm.toString());
 
-                HttpClient client = HttpClientBuilder.create().build();
+/*                HttpClient client = HttpClientBuilder.create().build();
                 HttpPost post = new HttpPost("http://localhost:8080/find/addresult");
                 // add header
                 post.setHeader("User-Agent", USER_AGENT);
@@ -142,24 +143,9 @@ public class MqttConnector implements MqttCallback{
                 post.setEntity(params);
                 HttpResponse response = client.execute(post);
                 System.out.println("Response Code : "
-                        + response.getStatusLine().getStatusCode());
-
-//                RestTemplate rt = new RestTemplate();
-                /*rt.getMessageConverters().add(new MappingJacksonHttpMessageConverter());
-                rt.getMessageConverters().add(new StringHttpMessageConverter());
-                String uri = new String("http://" + mRESTServer.getHost() + ":8080/springmvc-resttemplate-test/api/{id}");
-                User u = new User();
-                u.setName("Johnathan M Smith");
-                u.setUser("JS01");
-                User returns = rt.postForObject(uri, u, User.class, vars);
-                LOGGER.debug("User:  " + u.toString());*/
+                        + response.getStatusLine().getStatusCode());*/
 
 
-
-//                Client.authenticate();
-//                Client.post(observationReq);
-//                logger.debug(observationReq.toString());
-//                logger.debug(mapper.writeValueAsString(observationReq));
                 byte[] tmp = mapper.writeValueAsString(observationReq).getBytes();
 
 //                tvRssi = -1000;
@@ -171,9 +157,10 @@ public class MqttConnector implements MqttCallback{
     }
 
     private void publishMsg(){
+        String msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,12.4,0,0.6\"}";
         try {
             if(this.mqclient.isConnected())
-              this.mqclient.publish("twg/relative/room_status_mqtt",new MqttMessage("publish relative localization".getBytes()));
+              this.mqclient.publish("apps/notifications",new MqttMessage(msg.getBytes()));
             else
                 System.out.println("-------");
         } catch (MqttException e) {
