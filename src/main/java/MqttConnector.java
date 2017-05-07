@@ -82,7 +82,6 @@ public class MqttConnector implements MqttCallback{
         WSNMessage.Advertisment advertisment = WSNMessage.Advertisment.parseFrom(message.getPayload());
 
         logger.info(advertisment.getAddress());
-        publishMsg();
 
         if( advertisment.getAddress().equals("00:02:5B:00:B9:10") || advertisment.getAddress().equals("00:02:5B:00:B9:12") ){
 
@@ -105,10 +104,12 @@ public class MqttConnector implements MqttCallback{
 
             if (tvRssi > bathroomRssi){
                 currentLocation = Utils.Location.LOCATION1;
+                publishMsg(Room.TV);
 //                logger.info("TV");
             }
             else if (tvRssi < bathroomRssi){
                 currentLocation = Utils.Location.LOCATION2;
+                publishMsg(Room.BATH);
 //                logger.info("BATHROOM");
             }
 
@@ -156,8 +157,15 @@ public class MqttConnector implements MqttCallback{
         }
     }
 
-    private void publishMsg(){
-        String msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,12.4,0,0.6\"}";
+    private void publishMsg(Room room){
+        String msg = msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,10.83,0,1.1\"}";
+        if (room.equals(Room.BATH)){
+            msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,6.6,0,1\"}";
+        }
+        else if (room.equals(Room.TV)){
+            msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,12.4,0,0.6\"}";
+        }
+
         try {
             if(this.mqclient.isConnected())
               this.mqclient.publish("apps/notifications",new MqttMessage(msg.getBytes()));
@@ -173,7 +181,18 @@ public class MqttConnector implements MqttCallback{
 
     }
 
+    public enum Room {
+        TV,
+        BATH
+    }
+
 }
+
+/*
+    Με Chair,12.4,0,0.6 τοποθετείται κοντά στην TV.
+    Με Chair,6.6,0,1 τοποθετείται μέσα στο μπάνιο.
+    Με Chair,10.83,0,1.1 τοποθετείται στην αρχική της θέση στο τραπέζι.
+*/
 
 
 /**
