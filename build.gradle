@@ -28,6 +28,7 @@ repositories {
     // Use 'jcenter' for resolving your dependencies.
     // You can declare any Maven/Ivy/file repository here.
     jcenter()
+    maven { url "http://repo.spring.io/libs-snapshot" }
 }
 
 // In this section you declare the dependencies for your production and test code
@@ -52,8 +53,8 @@ dependencies {
     // Apache HttpClient
     compile 'org.apache.httpcomponents:httpclient:4.5.3'
 
-    compile("org.springframework.boot:spring-boot-starter")
-    compile("org.springframework:spring-web")
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter', version: '1.5.3.RELEASE'
+//    compile("org.springframework:spring-web")
 
 
     // Declare the dependency for your favourite test framework you want to use in your tests.

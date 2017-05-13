@@ -50,7 +50,7 @@ public class MqttConnector implements MqttCallback{
         }
         try {
 //            this.mqclient = new MqttClient("tcp://172.21.13.170:1883", "relative-localization-agent-impl", new MemoryPersistence());
-            this.mqclient = new MqttClient("tcp://150.140.187.125:1883", "relativeLoc", new MemoryPersistence());
+            this.mqclient = new MqttClient("tcp://localhost:1883", "relativeLoc", new MemoryPersistence());
             this.mqclient.setCallback(this);
             this.mqclient.connect(this.getConnectioOptions());
             logger.info("Successfully Connected to main gateway");
@@ -81,10 +81,11 @@ public class MqttConnector implements MqttCallback{
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         WSNMessage.Advertisment advertisment = WSNMessage.Advertisment.parseFrom(message.getPayload());
 
-        logger.info(advertisment.getAddress());
+//        logger.info(advertisment.getAddress());
 
         if( advertisment.getAddress().equals("00:02:5B:00:B9:10") || advertisment.getAddress().equals("00:02:5B:00:B9:12") ){
 
+//            logger.info(advertisment.getAddress());
             if ((advertisment.getData().toByteArray()[27]& 0xFF) > 126){
                 rssi = (advertisment.getData().toByteArray()[27]& 0xFF) - 256;
             }
@@ -133,19 +134,19 @@ public class MqttConnector implements MqttCallback{
                 frm.setName("thing");
                 frm.setPlace(location.name());
                 frm.setDate(new Date());
-                logger.debug(frm.toString());
+                logger.info(frm.toString());
 
-/*                HttpClient client = HttpClientBuilder.create().build();
+                HttpClient client = HttpClientBuilder.create().build();
                 HttpPost post = new HttpPost("http://localhost:8080/find/addresult");
                 // add header
                 post.setHeader("User-Agent", USER_AGENT);
-                StringEntity params =new StringEntity("{\"name\":\"" + "thing" +"\",\"location\":\"" + location.name() + "\",\"date\":\"" + new Date().getTime() + "\")} ");
+                StringEntity params =new StringEntity("{\"name\":\"" + "thing" +"\",\"place\":\"" + frm.getPlace().toLowerCase() + "\"} ");
                 post.addHeader("content-type", "application/json");
                 post.setEntity(params);
                 HttpResponse response = client.execute(post);
                 System.out.println("Response Code : "
-                        + response.getStatusLine().getStatusCode());*/
-
+                        + response.getStatusLine().getStatusCode());
+logger.info("{\"name\":\"" + "thing" +"\",\"location\":\"" + frm.getPlace().toLowerCase() + "\"} ");
 
                 byte[] tmp = mapper.writeValueAsString(observationReq).getBytes();
 
