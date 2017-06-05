@@ -1,13 +1,11 @@
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.InvalidProtocolBufferException;
 import models.FindResultModel;
+import models.Location;
 import models.ObservationReq;
 import models.Thing;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.atlas.gateway.components.wsn.messages.WSNMessage;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -20,20 +18,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-
-import static org.apache.http.HttpHeaders.USER_AGENT;
+import java.util.Date;
 
 public class MqttConnector implements MqttCallback{
 
     private static final Logger logger = LoggerFactory.getLogger(MqttConnector.class);
     private MqttClient mqclient;
-    private Integer rssi = 0;
-    private Integer tvRssi = 0;
-    private Integer bathroomRssi = 0;
+    private int rssi = 0;
+    private int tvRssi = 0;
+    private int bathroomRssi = 0;
     private Utils.Location location= Utils.Location.LOCATION1;
     private Utils.Location currentLocation = Utils.Location.LOCATION1;
     private static final Map<String, Long> thingIds;
     private ObjectMapper mapper = new ObjectMapper();
+    private Location locationObject;
 
     static
     {
@@ -48,16 +46,35 @@ public class MqttConnector implements MqttCallback{
             logger.info("MQTT Connection disabled by user");
             return;
         }
-        try {
+
+        boolean isconnected =false;
+
+        while(!isconnected){
+            try {
 //            this.mqclient = new MqttClient("tcp://172.21.13.170:1883", "relative-localization-agent-impl", new MemoryPersistence());
-            this.mqclient = new MqttClient("tcp://localhost:1883", "relativeLoc", new MemoryPersistence());
-            this.mqclient.setCallback(this);
-            this.mqclient.connect(this.getConnectioOptions());
-            logger.info("Successfully Connected to main gateway");
-            this.mqclient.subscribe("wsn/ble/devices/advertisments");
-            logger.info("Suscribed to topic get advertisments: wsn/ble/devices/advertisments");
-        } catch (MqttException e) {
-            logger.error("Error while trying to connect to MQTT provide",e);
+//                this.mqclient = new MqttClient("tcp://10.10.20.110:1883", "relativeLoc", new MemoryPersistence());
+                this.mqclient = new MqttClient("tcp://192.168.0.156:1883", "relativeLoc", new MemoryPersistence());
+                this.mqclient.setCallback(this);
+                this.mqclient.connect(this.getConnectioOptions());
+                isconnected = this.mqclient.isConnected();
+
+                if (isconnected){
+                    logger.info("Successfully Connected to main gateway");
+                    this.mqclient.subscribe("wsn/ble/devices/advertisments");
+                    logger.info("Suscribed to topic get advertisments: wsn/ble/devices/advertisments");
+                }
+
+
+            } catch (MqttException e) {
+                logger.error("Error while trying to connect to MQTT provide",e);
+                isconnected = false;
+            }
+
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -78,19 +95,17 @@ public class MqttConnector implements MqttCallback{
     public void connectionLost(Throwable cause) {}
 
 
-    public void messageArrived(String topic, MqttMessage message) throws Exception {
+    public void messageArrived(String topic, MqttMessage message) throws InvalidProtocolBufferException, JsonProcessingException {
         WSNMessage.Advertisment advertisment = WSNMessage.Advertisment.parseFrom(message.getPayload());
 
-//        logger.info(advertisment.getAddress());
+        if( advertisment != null && advertisment.getAddress() != null &&
+                (advertisment.getAddress().equals("00:02:5B:00:B9:10") ||
+                        advertisment.getAddress().equals("00:02:5B:00:B9:12") )){
 
-        if( advertisment.getAddress().equals("00:02:5B:00:B9:10") || advertisment.getAddress().equals("00:02:5B:00:B9:12") ){
-
-//            logger.info(advertisment.getAddress());
-            if ((advertisment.getData().toByteArray()[27]& 0xFF) > 126){
-                rssi = (advertisment.getData().toByteArray()[27]& 0xFF) - 256;
-            }
-            else {
-                rssi = - (advertisment.getData().toByteArray()[27]& 0xFF);
+            if ((advertisment.getData().toByteArray()[27] & 0xFF) > 126) {
+                rssi = (advertisment.getData().toByteArray()[27] & 0xFF) - 256;
+            } else {
+                rssi = -(advertisment.getData().toByteArray()[27] & 0xFF);
             }
 
 
@@ -101,22 +116,25 @@ public class MqttConnector implements MqttCallback{
                 bathroomRssi = rssi;
             }
 
-            logger.info("10: " + tvRssi + " --- " + "12: " + bathroomRssi);
+            logger.debug("10: " + tvRssi + " --- " + "12: " + bathroomRssi);
+
 
             if (tvRssi > bathroomRssi){
                 currentLocation = Utils.Location.LOCATION1;
-                publishMsg(Room.TV);
-//                logger.info("TV");
+//                publishMsg(Room.TV);
             }
             else if (tvRssi < bathroomRssi){
                 currentLocation = Utils.Location.LOCATION2;
-                publishMsg(Room.BATH);
-//                logger.info("BATHROOM");
+//                publishMsg(Room.BATH);
+            }
+            else {
+                return;
             }
 
             if (location != currentLocation){
                 location = currentLocation;
                 logger.debug(location.name());
+                publishMsg(location.toString());
 
                 ObservationReq observationReq = new ObservationReq();
                 Thing thing = new Thing();
@@ -136,40 +154,21 @@ public class MqttConnector implements MqttCallback{
                 frm.setDate(new Date());
                 logger.info(frm.toString());
 
-                HttpClient client = HttpClientBuilder.create().build();
-                HttpPost post = new HttpPost("http://localhost:8080/find/addresult");
-                // add header
-                post.setHeader("User-Agent", USER_AGENT);
-                StringEntity params =new StringEntity("{\"name\":\"" + "thing" +"\",\"place\":\"" + frm.getPlace().toLowerCase() + "\"} ");
-                post.addHeader("content-type", "application/json");
-                post.setEntity(params);
-                HttpResponse response = client.execute(post);
-                System.out.println("Response Code : "
-                        + response.getStatusLine().getStatusCode());
-logger.info("{\"name\":\"" + "thing" +"\",\"location\":\"" + frm.getPlace().toLowerCase() + "\"} ");
-
                 byte[] tmp = mapper.writeValueAsString(observationReq).getBytes();
-
-//                tvRssi = -1000;
-//                bathroomRssi = -1000;
-//                this.mqclient.publish("twg/relative/room_status_mqtt",new MqttMessage(tmp));
-//                this.publishMsg();
             }
         }
     }
 
-    private void publishMsg(Room room){
+    private void publishMsg(String location) throws JsonProcessingException {
         String msg = msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,10.83,0,1.1\"}";
-        if (room.equals(Room.BATH)){
-            msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,6.6,0,1\"}";
-        }
-        else if (room.equals(Room.TV)){
-            msg = "{\"uuid\":\"b1252fb0-ada3-4617-9bd6-6af0addf9c1d\",\"timestamp\":1494003326102,\"device\":\"B0:B4:48:C9:26:01\",\"datatype\":\"temperature\",\"value\":26.91,\"payload\":\"Chair,12.4,0,0.6\"}";
-        }
-
+            locationObject = new Location();
+            locationObject.setLocation(location);
+            locationObject.setCreatedAt(new Date());
+            locationObject.setObject("thing");
+            msg = mapper.writeValueAsString(locationObject);
         try {
             if(this.mqclient.isConnected())
-              this.mqclient.publish("apps/notifications",new MqttMessage(msg.getBytes()));
+                this.mqclient.publish("apps/localization/relative",new MqttMessage(msg.getBytes()));
             else
                 System.out.println("-------");
         } catch (MqttException e) {
@@ -195,7 +194,3 @@ logger.info("{\"name\":\"" + "thing" +"\",\"location\":\"" + frm.getPlace().toLo
     Με Chair,10.83,0,1.1 τοποθετείται στην αρχική της θέση στο τραπέζι.
 */
 
-
-/**
- * 12 -> 24, 16 -> 25, 10 -> 26
- */
